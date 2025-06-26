@@ -1,5 +1,5 @@
-JpegDecoder
-===========
+ImageViewerJpeg
+===============
 
 An incomplete JPEG image decoder implemented in JavaScript.
 
