@@ -1,7 +1,7 @@
 
 class UiEventHandler
 {
-	inputFileToLoad_Changed(inputFileToLoad)
+	static inputFileToLoad_Changed(inputFileToLoad)
 	{
 		var file = inputFileToLoad.files[0];
 
@@ -10,7 +10,7 @@ class UiEventHandler
 		fileReader.readAsBinaryString(file);
 	}
 
-	inputFileToLoad_Changed_Loaded(event)
+	static inputFileToLoad_Changed_Loaded(event)
 	{
 		var fileReader = event.target;
 		var fileAsBinaryString = fileReader.result;

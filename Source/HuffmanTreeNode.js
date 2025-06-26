@@ -15,8 +15,8 @@ class HuffmanTreeNode
 		var lengthOfCodeToAdd = codeToAdd.length;
 
 		var nodeCurrent = this;
-		lengthOfNodeCurrentCode = nodeCurrent.code.length;
-	
+		var lengthOfNodeCurrentCode = nodeCurrent.code.length;
+
 		while (lengthOfCodeToAdd > lengthOfNodeCurrentCode)
 		{
 			var childIndex = codeToAdd.substr(lengthOfNodeCurrentCode).charAt(0);

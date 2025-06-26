@@ -1,5 +1,5 @@
 
-class DiscreteCosineTransformHelper()
+class DiscreteCosineTransformHelper
 {
 	static samplesAddValue(samples, valueToAdd)
 	{

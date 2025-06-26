@@ -38,6 +38,8 @@ class ImageJpeg
 			throw "Not a JPEG file.";
 		}
 
+		var segments = []; // Informational only.
+
 		while (stream.hasMoreBits() == true)
 		{
 			var segmentMarker = stream.readByte();
@@ -48,7 +50,7 @@ class ImageJpeg
 
 			var segmentType = stream.readByte();
 
-			if (segmentType == 0xC0)
+			if (segmentType == 0xC0) // 192
 			{
 				// start of frame - baseline DCT
 				var payloadLengthInBytes = stream.readBytesAsInteger(2) - 2;
@@ -60,13 +62,13 @@ class ImageJpeg
 				);
 				frameCurrent = frames[frames.length - 1];
 			}
-			else if (segmentType == 0xC2)
+			else if (segmentType == 0xC2) // 194
 			{
 				// start of frame - progressive DCT
 				var payloadLengthInBytes = stream.readBytesAsInteger(2) - 2;
 				var payloadAsBytes = stream.readBytes(payloadLengthInBytes);
 			}
-			else if (segmentType == 0xC4)
+			else if (segmentType == 0xC4) // 196
 			{
 				// define Huffman tables
 				var payloadLengthInBytes = stream.readBytesAsInteger(2) - 2;
@@ -77,23 +79,23 @@ class ImageJpeg
 					payloadAsStream, huffmanTrees
 				);
 			}
-			else if (segmentType >= 0xD0 && segmentType <= 0xD7)
+			else if (segmentType >= 0xD0 && segmentType <= 0xD7) // 208-215
 			{
 				// restart
 				// no payload
 			}
-			else if (segmentType == 0xD8)
+			else if (segmentType == 0xD8) // 216
 			{
 				// start of image
 				// no payload
 			}
-			else if (segmentType == 0xD9)
+			else if (segmentType == 0xD9) // 217
 			{
 				// end of image
 				// no payload
 				break;
 			}
-			else if (segmentType == 0xDA)
+			else if (segmentType == 0xDA) // 218
 			{
 				// start of scan
 				var payloadLengthInBytes = stream.readBytesAsInteger(2) - 2;
@@ -111,18 +113,18 @@ class ImageJpeg
 					frameCurrent
 				);
 			}
-			else if (segmentType == 0xDB)
+			else if (segmentType == 0xDB) // 219
 			{
 				// define quantization tables
 				var payloadLengthInBytes = stream.readBytesAsInteger(2) - 2;
 				var payloadAsBytes = stream.readBytes(payloadLengthInBytes);
 				var payloadAsStream = new BitStream(payloadAsBytes);
-				ImageJpeg.fromBitStream_Segment_QuantizationTable
+				quantizationTables = ImageJpeg.fromBitStream_Segment_QuantizationTable
 				(
 					payloadAsStream, quantizationTables
 				);
 			}
-			else if (segmentType == 0xDD)
+			else if (segmentType == 0xDD) // 221
 			{
 				// define restart interval
 				var payloadLengthInBytes = stream.readBytesAsInteger(2) - 2;
@@ -132,17 +134,19 @@ class ImageJpeg
 				}
 				var payloadAsBytes = stream.readBytes(payloadLengthInBytes);
 			}
-			else if (segmentType >= 0xE0 && segmentType <= 0xEF)
+			else if (segmentType >= 0xE0 && segmentType <= 0xEF) // 224-239
 			{
 				// application-specific
 				var payloadLengthInBytes = stream.readBytesAsInteger(2) - 2;
-				var payloadAsBytes = stream.readBytes(payloadLengthInBytes);
+				var payloadAsString = stream.readString(payloadLengthInBytes);
+				segments.push(payloadAsString);
 			}
-			else if (segmentType == 0xFE)
+			else if (segmentType == 0xFE) // 254
 			{
 				// text comment
 				var payloadLengthInBytes = stream.readBytesAsInteger(2) - 2;
-				var payloadAsBytes = stream.readBytes(payloadLengthInBytes);
+				var payloadAsString = stream.readString(payloadLengthInBytes);
+				segments.push(payloadAsString);
 			}
 			else
 			{
@@ -204,6 +208,7 @@ class ImageJpeg
 			}
 			quantizationTables.push(quantizationTable);
 		}
+		return quantizationTables;
 	}
 
 	static fromBitStream_Segment_Scan
@@ -291,7 +296,8 @@ class ImageJpeg
 						// end of block
 						// Any remaining AC components are 0.
 
-						var numberOfCoefficientsRemaining = 64 - planeDCAndACs.length;
+						var numberOfCoefficientsRemaining =
+							64 - planeDCAndACs.length;
 						for (var a = 0; a < numberOfCoefficientsRemaining; a++)
 						{
 							planeDCAndACs.push(0);
