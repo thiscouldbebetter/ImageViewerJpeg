@@ -4,6 +4,14 @@ ImageViewerJpeg
 An incomplete JPEG image decoder implemented in JavaScript.
 
 
+Sources
+-------
+https://en.wikipedia.org/wiki/Jpeg
+https://en.wikipedia.org/wiki/JPEG_File_Interchange_Format
+https://yasoob.me/posts/understanding-and-writing-jpeg-decoder-in-python/
+https://mykb.cipindanci.com/archive/SuperKB/1294/JPEG%20File%20Layout%20and%20Format.htm
+https://www.ccoderun.ca/programming/2017-01-31_jpeg/
+
 JPEG Encoding Explained
 -----------------------
 

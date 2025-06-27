@@ -63,6 +63,11 @@ class BitStream
 		return returnValue;
 	}
 
+	byteCurrentPeek()
+	{
+		return this.bytes[this.byteIndexCurrent];
+	}
+
 	bytesToInteger(bytesToConvert)
 	{
 		var returnValue = 0;
@@ -78,6 +83,16 @@ class BitStream
 		}
 
 		return returnValue;
+	}
+
+	bytesRemaining()
+	{
+		return this.bytes.slice(this.byteIndexCurrent);
+	}
+
+	bytesRemainingCount()
+	{
+		return this.bytes.length - this.byteIndexCurrent;
 	}
 
 	bytesToIntegerLittleEndian(bytesToConvert)
@@ -156,6 +171,10 @@ class BitStream
 	readByte()
 	{
 		var returnValue = this.bytes[this.byteIndexCurrent];
+		if (returnValue == null)
+		{
+			throw new Error("No more bytes to read!");
+		}
 		this.byteIndexCurrent++;
 		return returnValue;
 	}
@@ -166,8 +185,8 @@ class BitStream
 
 		for (var i = 0; i < numberOfBytesToRead; i++)
 		{
-			var byte = this.readByte();
-			returnValues.push(byte);
+			var byteRead = this.readByte();
+			returnValues.push(byteRead);
 		}
 
 		return returnValues;

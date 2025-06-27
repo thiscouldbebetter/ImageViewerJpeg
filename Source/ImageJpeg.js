@@ -25,6 +25,8 @@ class ImageJpeg
 			pixels[pixelIndex] = pixel;
 		}
 
+		var app0Segment = null;
+		var startOfFrame = null;
 		var frames = [];
 		var huffmanTrees = [];
 		var quantizationTables = [];
@@ -52,10 +54,12 @@ class ImageJpeg
 
 			if (segmentType == 0xC0) // 192
 			{
-				// start of frame - baseline DCT
+				// Start of frame - baseline DCT.
 				var payloadLengthInBytes = stream.readBytesAsInteger(2) - 2;
-				var payloadAsBytes = stream.readBytes(payloadLengthInBytes);
-				var frameHeaderAsStream = new BitStream(payloadAsBytes);
+				var payloadAsBytes =
+					stream.readBytes(payloadLengthInBytes);
+				var frameHeaderAsStream =
+					new BitStream(payloadAsBytes);
 				ImageJpeg.fromBitStream_Segment_StartOfFrame
 				(
 					frameHeaderAsStream, frames
@@ -64,17 +68,43 @@ class ImageJpeg
 			}
 			else if (segmentType == 0xC2) // 194
 			{
-				// start of frame - progressive DCT
+				// Start of frame - progressive DCT.
 				var payloadLengthInBytes = stream.readBytesAsInteger(2) - 2;
 				var payloadAsBytes = stream.readBytes(payloadLengthInBytes);
+				var stream2 = new BitStream(payloadAsBytes);
+				var bitsPerPixelPerColorComponent = stream2.readByte();
+				// Height, then width?
+				var imageHeight = stream2.readInteger16();
+				var imageWidth = stream2.readInteger16();
+				var imageSize = new Coords(imageWidth, imageHeight);
+				var colorComponentCount = stream2.readByte();
+				var colorComponentDatas = [];
+				for (var cc = 0; cc < colorComponentCount; cc++)
+				{
+					var componentId = stream2.readByte(); // Y=1, Cb=2, Cr=3
+					var samplingFactor = stream2.readByte();
+					var quantizationTableIndex = stream2.readByte();
+					var colorComponentData = new ColorComponentData
+					(
+						componentId,
+						samplingFactor,
+						quantizationTableIndex
+					);
+					colorComponentDatas.push(colorComponentData);
+				}
+				startOfFrame = new StartOfFrameProgressiveDct
+				(
+					imageSize,
+					colorComponentDatas
+				);
 			}
 			else if (segmentType == 0xC4) // 196
 			{
-				// define Huffman tables
+				// Define Huffman tables.
 				var payloadLengthInBytes = stream.readBytesAsInteger(2) - 2;
 				var payloadAsBytes = stream.readBytes(payloadLengthInBytes);
 				var payloadAsStream = new BitStream(payloadAsBytes);
-				ImageJpeg.fromBitStream_Segment_HuffmanTree
+				var huffmanTrees = ImageJpeg.fromBitStream_Segment_HuffmanTree
 				(
 					payloadAsStream, huffmanTrees
 				);
@@ -115,14 +145,34 @@ class ImageJpeg
 			}
 			else if (segmentType == 0xDB) // 219
 			{
-				// define quantization tables
+				// Defines a quantization table.
 				var payloadLengthInBytes = stream.readBytesAsInteger(2) - 2;
 				var payloadAsBytes = stream.readBytes(payloadLengthInBytes);
 				var payloadAsStream = new BitStream(payloadAsBytes);
-				quantizationTables = ImageJpeg.fromBitStream_Segment_QuantizationTable
-				(
-					payloadAsStream, quantizationTables
-				);
+
+				var quantizationTableIndexRead =
+					payloadAsStream.readByte();
+				var quantizationTableIndexExpected =
+					quantizationTables.length;
+				if (quantizationTableIndexRead != quantizationTableIndexExpected)
+				{
+					var message =
+						"Expected quantization table number "
+						+ quantizationTableIndexExpected
+						+ ", but was: "
+						+ quantizationTableIndexRead;
+					throw new Error(message);
+				}
+
+				var quantizationTableCellsAsBytes =
+					payloadAsStream.readBytes(payloadLengthInBytes - 1);
+				var quantizationTable =
+					new QuantizationTable
+					(
+						quantizationTableIndexRead,
+						quantizationTableCellsAsBytes
+					);
+				quantizationTables.push(quantizationTable);
 			}
 			else if (segmentType == 0xDD) // 221
 			{
@@ -134,7 +184,61 @@ class ImageJpeg
 				}
 				var payloadAsBytes = stream.readBytes(payloadLengthInBytes);
 			}
-			else if (segmentType >= 0xE0 && segmentType <= 0xEF) // 224-239
+			else if (segmentType == 0xE0)
+			{
+				// An "APP0" segment.
+				// This assumes JFIF, but there's also EXIF.
+				// Apparently, the JPEG file format proper
+				// is widely considered, in some ways, incomplete,
+				// and these APP0 segments help fill in the blanks.
+
+				var payloadLengthInBytes = stream.readBytesAsInteger(2) - 2;
+				var markerJfifMaybe = stream.readString(4);
+				if (markerJfifMaybe == "JFIF")
+				{
+					var markerJfifNullTerminator = stream.readByte();
+					// JFIF: See: https://en.wikipedia.org/wiki/Jfif.
+					var jfifVersionMajor = stream.readByte();
+					var jfifVersionMinor = stream.readByte();
+					var densityUnitCode = stream.readByte();
+					// 00 : No units; width:height pixel aspect ratio = Ydensity:Xdensity
+					// 01 : Pixels per inch (2.54 cm)
+					// 02 : Pixels per centimeter
+					var densityInUnits = new Coords
+					(
+						stream.readInteger16(),
+						stream.readInteger16()
+					);
+					var thumbnailSizeInPixels = new Coords
+					(
+						stream.readByte(),
+						stream.readByte()
+					);
+					var thumbnailPixelCount =
+						thumbnailSizeInPixels.x
+						* thumbnailSizeInPixels.y;
+					var bytesPerPixel = 3;
+					var thumbnailPixelByteCount = 
+						thumbnailPixelCount * bytesPerPixel;
+					var thumbnailPixelsAsComponentsRgb =
+						stream.readBytes(thumbnailPixelByteCount);
+					app0Segment = new App0SegmentJfif
+					(
+						jfifVersionMajor,
+						jfifVersionMinor,
+						densityUnitCode,
+						densityInUnits,
+						thumbnailSizeInPixels,
+						thumbnailPixelsAsComponentsRgb
+					);
+
+					// If JFIF version >= 1.02,
+					// a JFIF extension APP0 marker segment comes next,
+					// which "allows to embed a thumbnail image in 3 different formats."
+					// But this decoder is built against version 1.01.
+				}
+			}
+			else if(segmentType >= 0xE1 && segmentType <= 0xEF) // 225-239
 			{
 				// application-specific
 				var payloadLengthInBytes = stream.readBytesAsInteger(2) - 2;
@@ -170,11 +274,13 @@ class ImageJpeg
 			var tableIndex = payloadAsStream.readByte();
 
 			var huffmanTree = new HuffmanTreeNode("", null);
-			var numbersOfHuffmanEntriesForCodeBitLengths = payloadAsStream.readBytes(16);
+			var numbersOfHuffmanEntriesForCodeBitLengths =
+				payloadAsStream.readBytes(16);
 
 			for (var i = 0; i < numbersOfHuffmanEntriesForCodeBitLengths.length; i++)
 			{
-				var numberOfEntriesForCodeBitLength = numbersOfHuffmanEntriesForCodeBitLengths[i];
+				var numberOfEntriesForCodeBitLength =
+					numbersOfHuffmanEntriesForCodeBitLengths[i];
 
 				for (var j = 0; j < numberOfEntriesForCodeBitLength; j++)
 				{
@@ -189,6 +295,8 @@ class ImageJpeg
 			// hack - Not sure what to do here.
 			huffmanTrees.push(huffmanTree);
 		}
+
+		return huffmanTrees;
 	}
 
 	static fromBitStream_Segment_QuantizationTable
@@ -546,5 +654,70 @@ class ImageJpeg_Frame_Header
 		this.samplingFactors = samplingFactors;
 		this.quantizationTableDestinationSelector =
 			quantizationTableDestinationSelector;
+	}
+}
+
+class App0SegmentExif
+{
+	constructor
+	(
+		todo
+	)
+	{
+		this.todo = todo;
+	}
+}
+
+class App0SegmentJfif
+{
+	constructor
+	(
+		jfifVersionMajor,
+		jfifVersionMinor,
+		densityUnitCode,
+		densityInUnits,
+		thumbnailSizeInPixels,
+		thumbnailPixelsAsComponentsRgb
+	)
+	{
+		this.jfifVersionMajor = jfifVersionMajor;
+		this.jfifVersionMinor = jfifVersionMinor;
+		this.densityUnitCode = densityUnitCode;
+		this.densityInUnits = densityInUnits;
+		this.thumbnailSizeInPixels = thumbnailSizeInPixels;
+		this.thumbnailPixelsAsComponentsRgb = thumbnailPixelsAsComponentsRgb;
+	}
+}
+
+class ColorComponentData
+{
+	constructor
+	(
+		componentId,
+		samplingFactor,
+		quantizationTableIndex
+	)
+	{
+		this.componentId = componentId;
+		this.samplingFactor = samplingFactor;
+		this.quantizationTableIndex = quantizationTableIndex;
+	}
+}
+
+class QuantizationTable
+{
+	constructor(tableIndex, cellsAsBytes)
+	{
+		this.tableIndex = tableIndex;
+		this.cellsAsBytes = cellsAsBytes;
+	}
+}
+
+class StartOfFrameProgressiveDct
+{
+	constructor(imageSize, colorComponentDatas)
+	{
+		this.imageSize = imageSize;
+		this.colorComponentDatas = colorComponentDatas;
 	}
 }
