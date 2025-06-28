@@ -31,6 +31,25 @@ class BitStream
 
 	// instance methods
 
+	bitsPeek(numberOfBitsToRead)
+	{
+		var returnValues = []; 
+
+		var byteIndexToRestore = this.byteIndexCurrent;
+		var bitOffsetToRestore = this.bitOffsetWithinByte;
+
+		for (var i = 0; i < numberOfBitsToRead; i++)
+		{
+			var bit = this.readBit();
+			returnValues.push(bit);
+		}
+
+		this.byteIndexCurrent = byteIndexToRestore;
+		this.bitOffsetWithinByte = bitOffsetToRestore; 
+
+		return returnValues;
+	}
+
 	bitsToInteger(bitsToConvert)
 	{
 		var returnValue = 0;
@@ -130,6 +149,11 @@ class BitStream
 		}
 
 		return returnValue;
+	}
+
+	readBitAsBoolean()
+	{
+		return (this.readBit() == 1);
 	}
 
 	readBits(numberOfBitsToRead)

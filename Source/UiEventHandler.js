@@ -14,12 +14,18 @@ class UiEventHandler
 	{
 		var fileReader = event.target;
 		var fileAsBinaryString = fileReader.result;
-		var fileAsBitStream = BitStream.fromBinaryString(fileAsBinaryString);
-		var imageJpeg = ImageJpeg.fromBitStream(fileAsBitStream);
-		var imageJpegAsDomElement = imageJpeg.toDOMElement();
+		var fileAsBytes =
+			fileAsBinaryString
+				.split("")
+				.map(x => x.charCodeAt(0) );
+
+		var imageJpeg = ImageJpeg.fromBytes(fileAsBytes);
+
+		var imageJpegAsDomElement = imageJpeg.toDomElement();
+
 		var d = document;
 		var divOutput = d.getElementById("divOutput");
 		divOutput.innerHTML = "";
-		divOutput.appendChild(imageJpegAsDOMElement);
+		divOutput.appendChild(imageJpegAsDomElement);
 	}
 }
